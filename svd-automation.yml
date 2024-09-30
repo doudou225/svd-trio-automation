@@ -1,0 +1,56 @@
+description: Automation to Download From S3
+schemaVersion: "0.3"
+assumeRole: "{{ AutomationAssumeRole }}"
+parameters:
+  InstanceId:
+    description: ID of the Instance.
+    type: String
+  AutomationAssumeRole:
+    type: String
+    description: Role ARN to assume for execution
+    default: ""
+  OSName:
+    type: String
+    description: Name of the OS
+    default: Windows
+mainSteps:
+  - name: ChooseOSforCommands
+    action: aws:branch
+    inputs:
+      Choices:
+        - NextStep: downloadFromS3
+          Variable: "{{OSName}}"
+          StringEquals: Windows
+        - NextStep: runShellCommand
+          Variable: "{{OSName}}"
+          StringEquals: Linux
+      Default: downloadFromS3
+  - name: downloadFromS3
+    action: aws:runCommand
+    nextStep: runShellCommand
+    isEnd: false
+    inputs:
+      Parameters:
+        commands:
+          - |
+            #Import-Module AWSPowerShell
+            $Params = @{
+                BucketName = 'home-svd'
+                Key = 'googlechrome.msi'
+                File = 'C:\temp\googlechrome.msi'
+            }
+            Read-S3Object @Params
+            Start-Process msiexec.exe -Wait -ArgumentList '/I c:\temp\googlechrome.msi /quiet'
+      InstanceIds:
+        - "{{InstanceId}}"
+      DocumentName: AWS-RunPowerShellScript
+  - name: runShellCommand
+    action: aws:runCommand
+    isEnd: true
+    inputs:
+      Parameters:
+        commands:
+          - echo "Hello World" > /tmp/test.txt
+      InstanceIds:
+        - "{{InstanceId}}"
+      DocumentName: AWS-RunShellScript
